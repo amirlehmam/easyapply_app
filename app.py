@@ -143,17 +143,15 @@ def read_logs(max_entries=1000):
         log_file = logs_dir / "activity.log.jsonl"
         if not log_file.exists():
             return []
-        
         logs = []
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
                 try:
                     logs.append(json.loads(line.strip()))
                     if len(logs) >= max_entries:
                         break
-                except:
+                except Exception:
                     pass
-        
         return logs
     except Exception as e:
         logger.error(f"Error reading logs: {str(e)}")
@@ -184,7 +182,13 @@ async def stop_bot_api():
 
 @app.get("/api/config")
 async def get_config():
-    return read_config()
+    try:
+        with open("config.yaml", 'r', encoding='utf-8', errors='replace') as f:
+            config = yaml.safe_load(f)
+        return JSONResponse(content=config)
+    except Exception as e:
+        logger.error(f"Error reading config.yaml: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.post("/api/config")
 async def update_config(config_update: ConfigUpdate):
