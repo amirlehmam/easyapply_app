@@ -1,4 +1,4 @@
-import time, random, csv, pyautogui, traceback, os, re
+import time, random, csv, traceback, os, re
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -1278,14 +1278,8 @@ class LinkedinEasyApply:
             time.sleep(random.uniform(0.1, .6))
 
     def avoid_lock(self):
-        if self.disable_lock:
-            return
-
-        pyautogui.keyDown('ctrl')
-        pyautogui.press('esc')
-        pyautogui.keyUp('ctrl')
-        time.sleep(0.2)
-        pyautogui.press('esc')
+        # In headless/cloud environments, avoid_lock does nothing
+        return
 
     def get_base_search_url(self, parameters):
         remote_url = ""
