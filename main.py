@@ -13,6 +13,7 @@ logger = logging.getLogger("easyapply-bot")
 
 def init_browser():
     browser_options = Options()
+    # Recommended options for headless/cloud environments
     options = [
         '--disable-blink-features',
         '--no-sandbox',
@@ -20,8 +21,11 @@ def init_browser():
         '--ignore-certificate-errors',
         '--disable-blink-features=AutomationControlled',
         '--disable-gpu',
-        '--headless=new',
+        '--disable-software-rasterizer',
+        '--disable-dev-shm-usage',
+        '--headless=new',  # Use new headless mode for Chrome 112+
         '--window-size=1920,1080',
+        '--remote-debugging-port=9222',
     ]
     for opt in options:
         browser_options.add_argument(opt)

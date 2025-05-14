@@ -1,7 +1,7 @@
 # Use official Python slim image
 FROM python:3.10-slim
 
-# Install dependencies
+# Install Chromium and dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         chromium-driver \
@@ -28,7 +28,7 @@ RUN apt-get update && \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Set environment variable for Chrome binary
+# Set environment variable for Chrome binary (used by Selenium)
 ENV CHROME_BINARY=/usr/bin/chromium
 
 WORKDIR /app
@@ -36,6 +36,8 @@ COPY . .
 
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
+# Expose the port used by FastAPI/Gunicorn
 EXPOSE 8000
 
+# CMD should match your entrypoint (FastAPI, Gunicorn, etc.)
 CMD ["python", "app.py"]
