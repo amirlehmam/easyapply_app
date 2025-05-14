@@ -4,9 +4,12 @@ services:
     plan: free
     env: docker
     dockerfilePath: ./Dockerfile
-    # No buildCommand or startCommand needed, handled by Dockerfile
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
       - key: CHROME_BINARY
         value: /usr/bin/chromium
+    
+    # The Dockerfile exposes port 8000
+    # No buildCommand or startCommand needed, handled by Dockerfile
