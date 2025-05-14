@@ -290,8 +290,47 @@ class LinkedinEasyApply:
             debug=self.debug
         )
         self.logger = BotLogger()
+        # Try to load cookies if available
+        self.cookies_loaded = self.load_cookies()
+
+    def load_cookies(self, cookies_path="linkedin_cookies.json"):
+        """
+        Load cookies from a JSON file (exported from Cookie-Editor or similar) and add them to the browser.
+        Returns True if cookies were loaded, False otherwise.
+        """
+        if not os.path.exists(cookies_path):
+            print(f"No cookie file found at {cookies_path}, proceeding with normal login.")
+            return False
+        try:
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                cookies = json.load(f)
+            self.browser.get("https://www.linkedin.com")
+            for cookie in cookies:
+                # Remove fields not accepted by Selenium
+                cookie.pop('sameSite', None)
+                cookie.pop('storeId', None)
+                cookie.pop('hostOnly', None)
+                # Selenium expects expiry as int, not float
+                if 'expirationDate' in cookie:
+                    cookie['expiry'] = int(cookie['expirationDate'])
+                    cookie.pop('expirationDate')
+                # Remove unsupported fields
+                cookie = {k: v for k, v in cookie.items() if k in ['name', 'value', 'domain', 'path', 'expiry', 'secure', 'httpOnly']}
+                try:
+                    self.browser.add_cookie(cookie)
+                except Exception as e:
+                    print(f"Failed to add cookie: {cookie.get('name', '')}: {e}")
+            self.browser.refresh()
+            print("Loaded cookies from file and refreshed page.")
+            return True
+        except Exception as e:
+            print(f"Error loading cookies: {e}")
+            return False
 
     def login(self):
+        if self.cookies_loaded:
+            print("Cookies loaded, skipping login.")
+            return
         try:
             # Check if the "chrome_bot" directory exists
             print("Attempting to restore previous session...")
