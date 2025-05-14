@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyApply Bot Log Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            success: '#22c55e',
+            failed: '#ef4444',
+            timeout: '#f59e42',
+            skipped: '#64748b',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .log-row { transition: background 0.2s; }
+    .log-row:hover { background: rgba(59,130,246,0.07); }
+    .expandable { cursor: pointer; }
+    .expanded { background: #f1f5f9; }
+    .dark .expanded { background: #1e293b; }
+    #toast { position: fixed; bottom: 2rem; right: 2rem; z-index: 50; min-width: 220px; }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+  <div class="container mx-auto py-8 px-4">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold">EasyApply Bot Log Viewer</h1>
+      <button id="toggleDark" class="px-4 py-2 rounded bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900">Toggle Dark Mode</button>
+    </div>
+    <!-- Stats Dashboard -->
+    <div id="stats" class="mb-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-center"></div>
+    <!-- Status Filters & Export -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <div class="flex gap-2">
+        <button class="status-filter px-3 py-1 rounded bg-gray-200 dark:bg-gray-700" data-status="all">All</button>
+        <button class="status-filter px-3 py-1 rounded bg-success text-white" data-status="success">Success</button>
+        <button class="status-filter px-3 py-1 rounded bg-failed text-white" data-status="failed">Failed</button>
+        <button class="status-filter px-3 py-1 rounded bg-timeout text-white" data-status="timeout">Timeout</button>
+        <button class="status-filter px-3 py-1 rounded bg-skipped text-white" data-status="skipped">Skipped</button>
+      </div>
+      <input id="searchInput" type="text" placeholder="Search jobs, company, status, error..." class="w-full md:w-1/3 px-3 py-2 rounded border border-gray-300 dark:bg-gray-800 dark:border-gray-700 ml-2" />
+      <button id="exportCSV" class="ml-auto px-3 py-1 rounded bg-blue-600 text-white">Export CSV</button>
+      <button id="exportJSON" class="px-3 py-1 rounded bg-green-600 text-white">Export JSON</button>
+      <label class="ml-4 flex items-center space-x-2 cursor-pointer select-none">
+        <input type="checkbox" id="autoScroll" class="form-checkbox h-4 w-4 text-blue-600" checked>
+        <span class="text-sm">Auto-scroll to latest</span>
+      </label>
+      <span id="lastUpdated" class="text-sm text-gray-500 dark:text-gray-400 ml-4"></span>
+    </div>
+    <div class="overflow-x-auto rounded shadow bg-white dark:bg-gray-800">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            <th class="px-4 py-2 text-left">Time</th>
+            <th class="px-4 py-2 text-left">Job Title</th>
+            <th class="px-4 py-2 text-left">Company</th>
+            <th class="px-4 py-2 text-left">Location</th>
+            <th class="px-4 py-2 text-left">Status</th>
+            <th class="px-4 py-2 text-left">Reason/Error</th>
+            <th class="px-4 py-2 text-left">Details</th>
+          </tr>
+        </thead>
+        <tbody id="logTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+          <!-- Log rows go here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="toast" class="hidden"></div>
+  <script>
+    const logPath = 'logs/activity.log.jsonl';
+    let lastLogLength = 0;
+    let logs = [];
+    let expandedRows = new Set();
+    let dark = false;
+    let lastToastId = 0;
+    let lastLogCount = 0;
+    let statusFilter = 'all';
+    let autoScroll = true;
+
+    document.getElementById('toggleDark').onclick = () => {
+      dark = !dark;
+      document.body.classList.toggle('dark', dark);
+    };
+
+    document.getElementById('searchInput').addEventListener('input', renderTable);
+    document.querySelectorAll('.status-filter').forEach(btn => {
+      btn.onclick = function() {
+        statusFilter = this.dataset.status;
+        document.querySelectorAll('.status-filter').forEach(b => b.classList.remove('ring-2','ring-blue-500'));
+        this.classList.add('ring-2','ring-blue-500');
+        renderTable();
+      };
+    });
+    document.getElementById('autoScroll').onchange = e => { autoScroll = e.target.checked; };
+
+    document.getElementById('exportCSV').onclick = () => exportLogs('csv');
+    document.getElementById('exportJSON').onclick = () => exportLogs('json');
+
+    async function fetchLogs() {
+      try {
+        const resp = await fetch(logPath + '?_=' + Date.now());
+        if (!resp.ok) return;
+        const text = await resp.text();
+        if (text.length === lastLogLength) return; // No update
+        lastLogLength = text.length;
+        logs = text.trim().split('\n').map(line => {
+          try { return JSON.parse(line); } catch { return null; }
+        }).filter(Boolean);
+        renderStats();
+        renderTable();
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+        if (logs.length > lastLogCount) {
+          const newLog = logs[logs.length-1];
+          showToast(newLog);
+          if (autoScroll) setTimeout(() => window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}), 100);
+        }
+        lastLogCount = logs.length;
+      } catch (e) {
+        document.getElementById('lastUpdated').textContent = 'Log file not found or not accessible.';
+      }
+    }
+
+    function statusColor(status) {
+      switch ((status||'').toLowerCase()) {
+        case 'success': return 'bg-success text-white';
+        case 'failed': return 'bg-failed text-white';
+        case 'timeout': return 'bg-timeout text-white';
+        case 'skipped': return 'bg-skipped text-white';
+        default: return 'bg-gray-300 dark:bg-gray-700';
+      }
+    }
+
+    function relativeTime(ts) {
+      if (!ts) return '';
+      const now = Date.now();
+      const t = new Date(ts).getTime();
+      const diff = Math.floor((now-t)/1000);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      return `${Math.floor(diff/3600)}h ago`;
+    }
+
+    function renderStats() {
+      const stats = {success:0,failed:0,timeout:0,skipped:0};
+      logs.forEach(l => { if (l.status && stats.hasOwnProperty(l.status.toLowerCase())) stats[l.status.toLowerCase()]++; });
+      const total = logs.length;
+      const successRate = total ? Math.round((stats.success/total)*100) : 0;
+      document.getElementById('stats').innerHTML = `
+        <div class="rounded bg-success/10 p-3"><div class="text-2xl font-bold">${stats.success}</div><div class="text-xs uppercase">Success</div></div>
+        <div class="rounded bg-failed/10 p-3"><div class="text-2xl font-bold">${stats.failed}</div><div class="text-xs uppercase">Failed</div></div>
+        <div class="rounded bg-timeout/10 p-3"><div class="text-2xl font-bold">${stats.timeout}</div><div class="text-xs uppercase">Timeout</div></div>
+        <div class="rounded bg-skipped/10 p-3"><div class="text-2xl font-bold">${stats.skipped}</div><div class="text-xs uppercase">Skipped</div></div>
+        <div class="rounded bg-blue-100 dark:bg-blue-900 p-3"><div class="text-2xl font-bold">${successRate}%</div><div class="text-xs uppercase">Success Rate</div></div>
+      `;
+    }
+
+    function renderTable() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const table = document.getElementById('logTable');
+      table.innerHTML = '';
+      let filtered = logs.filter(l => {
+        if (!l.status || l.status.toLowerCase() !== 'success') return false;
+        if (!l.job_title || l.job_title.trim() === '') return false;
+        if (!l.company || l.company.trim() === '') return false;
+        let match = (
+          (l.job_title||'').toLowerCase().includes(search) ||
+          (l.company||'').toLowerCase().includes(search) ||
+          (l.status||'').toLowerCase().includes(search) ||
+          (l.reason||'').toLowerCase().includes(search) ||
+          (l.error||'').toLowerCase().includes(search)
+        );
+        if (statusFilter !== 'all') match = match && (l.status||'').toLowerCase() === statusFilter;
+        return match;
+      });
+      filtered.reverse().forEach((log, idx) => {
+        const rowId = 'row-' + idx;
+        const expanded = expandedRows.has(rowId);
+        const tr = document.createElement('tr');
+        tr.className = 'log-row' + (expanded ? ' expanded' : '') + ' expandable';
+        tr.onclick = () => {
+          if (expandedRows.has(rowId)) expandedRows.delete(rowId);
+          else expandedRows.add(rowId);
+          renderTable();
+        };
+        tr.innerHTML = `
+          <td class="px-4 py-2 whitespace-nowrap">
+            <div>${log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">${relativeTime(log.timestamp)}</div>
+          </td>
+          <td class="px-4 py-2">${log.job_title||''}</td>
+          <td class="px-4 py-2">${log.company||''}</td>
+          <td class="px-4 py-2">${log.location||''}</td>
+          <td class="px-4 py-2"><span class="px-2 py-1 rounded ${statusColor(log.status)}">${log.status||''}</span></td>
+          <td class="px-4 py-2">${log.reason||log.error||''}</td>
+          <td class="px-4 py-2 text-blue-600 dark:text-blue-400 underline">${expanded ? 'Hide' : 'Show'}</td>
+        `;
+        table.appendChild(tr);
+        if (expanded) {
+          const detailTr = document.createElement('tr');
+          detailTr.className = 'expanded';
+          detailTr.innerHTML = `<td colspan="7" class="px-6 pb-4 pt-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div class="font-semibold mb-1">Job Link:</div>
+                <a href="${log.job_link||'#'}" target="_blank" class="text-blue-500 underline break-all">${log.job_link||''}</a>
+                <div class="mt-2 font-semibold">Time Taken:</div>
+                <div>${log.time_taken_sec ? log.time_taken_sec + ' sec' : 'N/A'}</div>
+                <div class="mt-2 font-semibold">Answers:</div>
+                <pre class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-xs">${JSON.stringify(log.answers, null, 2)}</pre>
+                <div class="mt-2 font-semibold">AI Answers:</div>
+                <pre class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-xs">${JSON.stringify(log.ai_answers, null, 2)}</pre>
+              </div>
+              <div>
+                <div class="font-semibold mb-1">Unhandled/Unprepared Questions:</div>
+                <pre class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-xs">${log.unhandled_questions ? JSON.stringify(log.unhandled_questions, null, 2) : 'None'}</pre>
+                <div class="mt-2 font-semibold">Error:</div>
+                <div class="text-red-500">${log.error||''}</div>
+                <div class="mt-2 font-semibold">Screenshot:</div>
+                <a href="${log.screenshot||'#'}" target="_blank" class="text-blue-500 underline break-all">${log.screenshot||''}</a>
+                <div class="mt-2 font-semibold">Raw Log Entry:</div>
+                <pre class="bg-gray-100 dark:bg-gray-900 rounded p-2 text-xs">${JSON.stringify(log, null, 2)}</pre>
+              </div>
+            </div>
+          </td>`;
+          table.appendChild(detailTr);
+        }
+      });
+    }
+
+    function exportLogs(type) {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      let filtered = logs.filter(l => {
+        let match = (
+          (l.job_title||'').toLowerCase().includes(search) ||
+          (l.company||'').toLowerCase().includes(search) ||
+          (l.status||'').toLowerCase().includes(search) ||
+          (l.reason||'').toLowerCase().includes(search) ||
+          (l.error||'').toLowerCase().includes(search)
+        );
+        if (statusFilter !== 'all') match = match && (l.status||'').toLowerCase() === statusFilter;
+        return match;
+      });
+      if (type === 'csv') {
+        let csv = 'timestamp,job_title,company,location,job_link,status,reason,answers,ai_answers,time_taken_sec,error,screenshot\n';
+        filtered.forEach(l => {
+          csv += `"${l.timestamp||''}","${l.job_title||''}","${l.company||''}","${l.location||''}","${l.job_link||''}","${l.status||''}","${l.reason||l.error||''}","${JSON.stringify(l.answers||[])}","${JSON.stringify(l.ai_answers||[])}","${l.time_taken_sec||''}","${l.error||''}","${l.screenshot||''}"
+`;
+        });
+        const blob = new Blob([csv], {type:'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'filtered_logs.csv'; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const blob = new Blob([JSON.stringify(filtered, null, 2)], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'filtered_logs.json'; a.click();
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    function showToast(log) {
+      const toast = document.getElementById('toast');
+      let color = statusColor(log.status);
+      let msg = `[${log.status ? log.status.toUpperCase() : 'LOG'}] ${log.job_title||''} @ ${log.company||''}`;
+      if (log.reason || log.error) msg += `: ${log.reason||log.error}`;
+      toast.innerHTML = `<div class="rounded shadow-lg px-4 py-3 mb-2 ${color}">${msg}</div>`;
+      toast.classList.remove('hidden');
+      let thisId = ++lastToastId;
+      setTimeout(() => { if (lastToastId === thisId) toast.classList.add('hidden'); }, 3500);
+    }
+
+    setInterval(fetchLogs, 1000);
+    fetchLogs();
+  </script>
+</body>
+</html> 

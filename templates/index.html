@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyApply Bot Web App</title>
+    <!-- Import Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom styles -->
+    <style>
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .log-row:hover {
+            background: rgba(59, 130, 246, 0.07);
+        }
+        .editor-container {
+            height: 70vh;
+        }
+        #output-container {
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+    <div class="container mx-auto py-8 px-4">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold">EasyApply Bot Web App</h1>
+            <div>
+                <button id="toggleDark" class="px-4 py-2 rounded bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900">
+                    <i class="fas fa-moon dark:hidden"></i>
+                    <i class="fas fa-sun hidden dark:inline"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab navigation -->
+        <div class="border-b border-gray-200 mb-4">
+            <nav class="flex space-x-8" aria-label="Tabs">
+                <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600" 
+                        aria-current="page" data-tab="dashboard">Dashboard</button>
+                <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        data-tab="config">Configuration</button>
+                <button class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        data-tab="control">Bot Control</button>
+            </nav>
+        </div>
+
+        <!-- Dashboard Tab Content -->
+        <div id="dashboard-tab" class="tab-content active">
+            <!-- Stats Dashboard -->
+            <div id="stats" class="mb-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-center"></div>
+            
+            <!-- Status Filters & Export -->
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+                <div class="flex gap-2">
+                    <button class="status-filter px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 ring-2 ring-blue-500" data-status="all">All</button>
+                    <button class="status-filter px-3 py-1 rounded bg-green-500 text-white" data-status="success">Success</button>
+                    <button class="status-filter px-3 py-1 rounded bg-red-500 text-white" data-status="failed">Failed</button>
+                    <button class="status-filter px-3 py-1 rounded bg-yellow-500 text-white" data-status="timeout">Timeout</button>
+                    <button class="status-filter px-3 py-1 rounded bg-gray-500 text-white" data-status="skipped">Skipped</button>
+                </div>
+                <input id="searchInput" type="text" placeholder="Search jobs, company, status, error..." 
+                      class="w-full md:w-1/3 px-3 py-2 rounded border border-gray-300 dark:bg-gray-800 dark:border-gray-700 ml-2" />
+                <button id="exportCSV" class="ml-auto px-3 py-1 rounded bg-blue-600 text-white">Export CSV</button>
+                <button id="exportJSON" class="px-3 py-1 rounded bg-green-600 text-white">Export JSON</button>
+                <label class="ml-4 flex items-center space-x-2 cursor-pointer select-none">
+                    <input type="checkbox" id="autoRefresh" class="form-checkbox h-4 w-4 text-blue-600" checked>
+                    <span class="text-sm">Auto-refresh</span>
+                </label>
+                <span id="lastUpdated" class="text-sm text-gray-500 dark:text-gray-400 ml-4"></span>
+            </div>
+            
+            <!-- Log table -->
+            <div class="overflow-x-auto rounded shadow bg-white dark:bg-gray-800">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Time</th>
+                            <th class="px-4 py-2 text-left">Job Title</th>
+                            <th class="px-4 py-2 text-left">Company</th>
+                            <th class="px-4 py-2 text-left">Location</th>
+                            <th class="px-4 py-2 text-left">Status</th>
+                            <th class="px-4 py-2 text-left">Reason/Error</th>
+                            <th class="px-4 py-2 text-left">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTable" class="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                        <!-- Log rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Configuration Tab Content -->
+        <div id="config-tab" class="tab-content">
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold">Configuration Editor</h2>
+                    <div>
+                        <button id="saveConfig" class="px-4 py-2 bg-green-500 text-white rounded">
+                            <i class="fas fa-save mr-2"></i>Save Config
+                        </button>
+                    </div>
+                </div>
+                <div class="editor-container border border-gray-300 dark:border-gray-700 rounded-md">
+                    <div id="config-editor"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bot Control Tab Content -->
+        <div id="control-tab" class="tab-content">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold mb-4">Bot Control</h2>
+                <div class="flex gap-4 mb-4">
+                    <button id="startBot" class="px-6 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
+                        <i class="fas fa-play mr-2"></i>Start Bot
+                    </button>
+                    <button id="stopBot" class="px-6 py-3 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors">
+                        <i class="fas fa-stop mr-2"></i>Stop Bot
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold mb-2">Bot Status</h3>
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium" id="botStatusIndicator">
+                        <span class="h-3 w-3 rounded-full mr-2" id="botStatusDot"></span>
+                        <span id="botStatusText">Checking status...</span>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold mb-2">Output</h3>
+                    <div id="output-container" class="rounded-md text-sm"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for displaying log details -->
+    <div id="detailsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold" id="modalTitle">Job Details</h3>
+                <button id="closeModal" class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="modalContent">
+                <!-- Content will be inserted here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Monaco Editor and Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html> 
