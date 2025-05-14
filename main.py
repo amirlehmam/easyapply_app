@@ -3,7 +3,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from validate_email import validate_email
-from webdriver_manager.chrome import ChromeDriverManager
 from linkedineasyapply import LinkedinEasyApply
 import logging
 
@@ -36,7 +35,7 @@ def init_browser():
         logger.warning("CHROME_BINARY environment variable not set. Using default Chrome location.")
 
     try:
-        service = Service(ChromeDriverManager().install())
+        service = Service("/usr/bin/chromedriver")
         driver = webdriver.Chrome(service=service, options=browser_options)
         driver.implicitly_wait(1)  # Wait time in seconds to allow loading of elements
         # driver.set_window_position(0, 0)

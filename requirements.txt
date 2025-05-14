@@ -1,6 +1,5 @@
 selenium
 pyautogui
-webdriver_manager
 PyYAML
 validate_email
 openai>=1.0.0
