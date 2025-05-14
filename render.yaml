@@ -1,15 +1,12 @@
 services:
   - type: web
     name: easyapply-bot
-    env: python
     plan: free
-    buildCommand: |
-      apt-get update && \
-      apt-get install -y chromium-browser && \
-      pip install -r requirements.txt
-    startCommand: python app.py
+    env: docker
+    dockerfilePath: ./Dockerfile
+    # No buildCommand or startCommand needed, handled by Dockerfile
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
       - key: CHROME_BINARY
-        value: /usr/bin/chromium-browser
+        value: /usr/bin/chromium
