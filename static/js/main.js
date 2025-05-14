@@ -36,32 +36,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Initialize Monaco Editor
 function initMonacoEditor() {
-    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
-    require(['vs/editor/editor.main'], function() {
-        fetch('/api/config')
-            .then(response => response.json())
-            .then(config => {
-                // Convert config object to YAML string
-                const yamlString = configToYaml(config);
-                
-                // Create Monaco editor
-                configEditor = monaco.editor.create(document.getElementById('config-editor'), {
-                    value: yamlString,
-                    language: 'yaml',
-                    theme: dark ? 'vs-dark' : 'vs',
-                    automaticLayout: true,
-                    fontSize: 14,
-                    tabSize: 2
+    // Set the container height explicitly to avoid 5px bug
+    const editorContainer = document.getElementById('config-editor');
+    editorContainer.style.height = '60vh'; // or 70vh as needed
+    editorContainer.style.minHeight = '400px';
+    editorContainer.style.maxHeight = '80vh';
+    editorContainer.style.width = '100%';
+
+    // Try to load Monaco from CDN, fallback to error message if fails
+    function loadMonaco() {
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            fetch('/api/config')
+                .then(response => response.json())
+                .then(config => {
+                    // Convert config object to YAML string
+                    const yamlString = configToYaml(config);
+
+                    // Create Monaco editor
+                    configEditor = monaco.editor.create(editorContainer, {
+                        value: yamlString,
+                        language: 'yaml',
+                        theme: dark ? 'vs-dark' : 'vs',
+                        automaticLayout: true,
+                        fontSize: 14,
+                        tabSize: 2,
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                    });
+
+                    // Set up save button
+                    document.getElementById('saveConfig').addEventListener('click', saveConfig);
+                })
+                .catch(error => {
+                    console.error('Error loading configuration:', error);
+                    editorContainer.textContent = 'Error loading configuration.';
                 });
-                
-                // Set up save button
-                document.getElementById('saveConfig').addEventListener('click', saveConfig);
-            })
-            .catch(error => {
-                console.error('Error loading configuration:', error);
-                document.getElementById('config-editor').textContent = 'Error loading configuration.';
-            });
-    });
+        }, function(err) {
+            editorContainer.textContent = 'Failed to load Monaco Editor. Please check your connection or try again.';
+        });
+    }
+
+    // If require is not loaded, show error
+    if (typeof require === 'undefined') {
+        editorContainer.textContent = 'Monaco Editor loader not found. Please check your network or CDN settings.';
+        return;
+    }
+    loadMonaco();
 }
 
 // Initialize tab functionality
