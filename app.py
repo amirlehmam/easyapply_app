@@ -84,13 +84,18 @@ def run_bot():
     global bot_process, bot_running, bot_status, bot_output
     
     try:
+        import os
+        env = os.environ.copy()
+        env["CHROME_BINARY"] = "/opt/google/chrome/chrome"
+
         bot_process = subprocess.Popen(
-            ["python", "main.py"],
+            ["python3", "main.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            env=env
         )
         
         bot_status = "running"
