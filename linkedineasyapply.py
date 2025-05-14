@@ -317,8 +317,8 @@ class LinkedinEasyApply:
         page_source = self.browser.page_source
 
         if '/checkpoint/challenge/' in current_url or 'security check' in page_source or 'quick verification' in page_source:
-            input("Please complete the security check and press enter on this console when it is done.")
-            time.sleep(random.uniform(0.1, 0.3))
+            print("Security check required, but cannot prompt for input in cloud environment. Skipping and continuing...")
+            time.sleep(5)  # Wait a few seconds to allow for any possible automated challenge resolution
 
     def load_login_page_and_login(self):
         self.browser.get("https://www.linkedin.com/login")
