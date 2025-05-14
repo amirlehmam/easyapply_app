@@ -21,25 +21,31 @@ def init_browser():
         '--ignore-certificate-errors',
         '--disable-blink-features=AutomationControlled',
         '--disable-gpu',
+        '--headless=new',
         '--window-size=1920,1080',
-        '--disable-software-rasterizer',
-        '--disable-dev-shm-usage',
-        '--headless'  # Use classic headless mode
     ]
+    for opt in options:
+        browser_options.add_argument(opt)
 
-    # Restore session if possible (avoids login everytime)
-    # user_data_dir = os.path.join(os.getcwd(), "chrome_bot")
-    # browser_options.add_argument(f"user-data-dir={user_data_dir}")
+    # Set Chrome binary location from environment variable if provided
+    chrome_binary = os.environ.get('CHROME_BINARY')
+    if chrome_binary:
+        browser_options.binary_location = chrome_binary
+        logger.info(f"Using Chrome binary at: {chrome_binary}")
+    else:
+        logger.warning("CHROME_BINARY environment variable not set. Using default Chrome location.")
 
-    for option in options:
-        browser_options.add_argument(option)
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=browser_options)
-    driver.implicitly_wait(1)  # Wait time in seconds to allow loading of elements
-    # driver.set_window_position(0, 0)
-    # driver.maximize_window()
-    return driver
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=browser_options)
+        driver.implicitly_wait(1)  # Wait time in seconds to allow loading of elements
+        # driver.set_window_position(0, 0)
+        # driver.maximize_window()
+        return driver
+    except Exception as e:
+        logger.error(f"Error initializing Chrome WebDriver: {e}")
+        logger.error("Make sure Google Chrome is installed and CHROME_BINARY is set if Chrome is not in the default location.")
+        raise
 
 def validate_yaml(config_path="config.yaml"):
     with open(config_path, 'r', encoding='utf-8') as stream:
